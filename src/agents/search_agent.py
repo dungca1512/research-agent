@@ -21,15 +21,23 @@ from langchain_core.messages import HumanMessage
 
 class SearchAgent(BaseA2AAgent):
     """Agent specialized in searching web and academic sources."""
-    
+
     def __init__(self, port: int = 8001):
         super().__init__(port=port)
-        config = get_config()
-        self.llm = ChatGoogleGenerativeAI(
-            model=config.llm_model,
-            google_api_key=config.google_api_key,
-            temperature=0.1
-        )
+        self.config = get_config()
+        self.llm = None
+
+    def _get_llm(self) -> ChatGoogleGenerativeAI:
+        """Create the LLM lazily so non-LLM actions can still run."""
+        if self.llm is None:
+            if not self.config.has_google_api:
+                raise ValueError("GOOGLE_API_KEY is required for decompose_query")
+            self.llm = ChatGoogleGenerativeAI(
+                model=self.config.llm_model,
+                google_api_key=self.config.google_api_key,
+                temperature=0.1
+            )
+        return self.llm
     
     @property
     def agent_card(self) -> AgentCard:
@@ -89,7 +97,7 @@ Query: {query}
 
 Return ONLY the queries, one per line."""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         queries = [q.strip() for q in response.content.strip().split("\n") if q.strip()]
         
         # Always include original

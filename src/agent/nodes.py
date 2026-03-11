@@ -8,16 +8,8 @@ import asyncio
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.agent.state import ResearchState
-from src.a2a.client import A2AClient
 from src.config import get_config
-
-# Agent endpoints (same as MCP server)
-SEARCH_AGENT_URL = "http://localhost:8001"
-PAPER_AGENT_URL = "http://localhost:8002"
-SYNTHESIS_AGENT_URL = "http://localhost:8003"
-
-# A2A client
-a2a_client = A2AClient(timeout=60.0)
+from src.research.backend import SEARCH_AGENT_URL, SYNTHESIS_AGENT_URL, call_agent_safe
 
 # Prompts
 QUERY_DECOMPOSITION_PROMPT = """You are a research assistant helping to decompose a research query into effective search queries.
@@ -76,18 +68,6 @@ def get_llm():
     )
 
 
-async def call_agent_safe(url: str, action: str, payload: dict) -> dict:
-    """Safely call an A2A agent, return error dict on failure."""
-    try:
-        response = await a2a_client.call_agent(url, action, payload)
-        if response.status == "completed":
-            return response.result or {}
-        else:
-            return {"error": response.error or "Unknown error"}
-    except Exception as e:
-        return {"error": str(e)}
-
-
 def run_async(coro):
     """Run async coroutine in sync context."""
     try:
@@ -102,6 +82,33 @@ def run_async(coro):
             return loop.run_until_complete(coro)
     except RuntimeError:
         return asyncio.run(coro)
+
+
+def build_synthesis_sources(state: ResearchState) -> list[dict]:
+    """Build numbered source objects compatible with SynthesisAgent.generate_report."""
+    sources = []
+
+    for result in state["web_results"][:5]:
+        sources.append({
+            "id": len(sources) + 1,
+            "type": "web",
+            "title": result.get("title", "N/A"),
+            "url": result.get("url", ""),
+            "content": result.get("content", ""),
+        })
+
+    for paper in state["arxiv_papers"][:5]:
+        sources.append({
+            "id": len(sources) + 1,
+            "type": "paper",
+            "title": paper.get("title", "N/A"),
+            "authors": paper.get("authors", []),
+            "year": paper.get("published", paper.get("year", "")),
+            "arxiv_id": paper.get("arxiv_id", ""),
+            "summary": paper.get("summary", ""),
+        })
+
+    return sources
 
 
 def query_decomposition_node(state: ResearchState) -> dict:
@@ -246,11 +253,14 @@ def synthesis_node(state: ResearchState) -> dict:
         
         response = llm.invoke([HumanMessage(content=prompt)])
         synthesis = response.content
+        sources = build_synthesis_sources(state)
     else:
         synthesis = result.get("synthesis", "")
+        sources = result.get("sources", build_synthesis_sources(state))
     
     return {
         "synthesis": synthesis,
+        "synthesis_sources": sources,
         "iteration": state["iteration"] + 1,
         "messages": [AIMessage(content="Completed synthesis via A2A")]
     }
@@ -267,7 +277,7 @@ def report_node(state: ResearchState) -> dict:
             {
                 "query": state["query"],
                 "synthesis": state["synthesis"],
-                "sources": state["web_results"][:5] + state["arxiv_papers"][:5]
+                "sources": state["synthesis_sources"] or build_synthesis_sources(state)
             }
         )
         return result

@@ -1,6 +1,7 @@
 # LangChain & LangGraph
 langchain>=0.3.0
 langgraph>=0.2.0
+deepagents>=0.4.7
 langchain-google-genai>=2.0.0
 langchain-community>=0.3.0
 

@@ -29,15 +29,23 @@ from langchain_core.messages import HumanMessage
 
 class PaperAgent(BaseA2AAgent):
     """Agent specialized in paper analysis and parsing."""
-    
+
     def __init__(self, port: int = 8002):
         super().__init__(port=port)
-        config = get_config()
-        self.llm = ChatGoogleGenerativeAI(
-            model=config.llm_model,
-            google_api_key=config.google_api_key,
-            temperature=0.1
-        )
+        self.config = get_config()
+        self.llm = None
+
+    def _get_llm(self) -> ChatGoogleGenerativeAI:
+        """Create the LLM lazily so non-LLM paper tools can still run."""
+        if self.llm is None:
+            if not self.config.has_google_api:
+                raise ValueError("GOOGLE_API_KEY is required for extract_key_info")
+            self.llm = ChatGoogleGenerativeAI(
+                model=self.config.llm_model,
+                google_api_key=self.config.google_api_key,
+                temperature=0.1
+            )
+        return self.llm
     
     @property
     def agent_card(self) -> AgentCard:
@@ -144,7 +152,7 @@ Extract and return:
 
 Be concise and factual."""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
         return {
             "title": paper_title,

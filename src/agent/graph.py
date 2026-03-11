@@ -28,7 +28,7 @@ def create_research_agent():
     
     The workflow follows this pattern:
     1. Query Decomposition - Break down the research query
-    2. Parallel Search - Web + ArXiv searches
+    2. Search - Web then ArXiv searches
     3. Synthesis - Combine and analyze results
     4. Decision - Continue or generate report
     5. Report - Generate final research report
@@ -49,7 +49,7 @@ def create_research_agent():
     # Define edges
     workflow.set_entry_point("decompose")
     
-    # After decomposition, do both searches
+    # After decomposition, run web search followed by arXiv search
     workflow.add_edge("decompose", "web_search")
     workflow.add_edge("web_search", "arxiv_search")
     workflow.add_edge("arxiv_search", "synthesize")
@@ -158,4 +158,3 @@ def run_research_stream(
                 on_node_end(node_name, result_info)
     
     return final_report
-

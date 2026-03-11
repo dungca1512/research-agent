@@ -3,7 +3,7 @@
 Research Agent - AI-powered research assistant using LangGraph.
 
 Usage:
-    python main.py "What are the latest advances in LLM agents?"
+    python main.py research "What are the latest advances in LLM agents?"
     python main.py chat   # Interactive mode
     python main.py --help
 """
@@ -15,7 +15,6 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
 
-from src.agent.graph import run_research_sync
 from src.config import get_config
 
 app = typer.Typer(
@@ -45,8 +44,10 @@ def research(
     Run the research agent on a query and generate a comprehensive report.
     
     Example:
-        python main.py "What are the latest advances in transformer architectures?"
+        python main.py research "What are the latest advances in transformer architectures?"
     """
+    from src.agent.graph import run_research_sync
+
     config = get_config()
     
     # Validate configuration
@@ -234,11 +235,7 @@ def chat(
     # Check A2A agents health
     console.print("[dim]Checking A2A agents...[/dim]")
     import httpx
-    agents = [
-        ("Search Agent", "http://localhost:8001"),
-        ("Paper Agent", "http://localhost:8002"),
-        ("Synthesis Agent", "http://localhost:8003"),
-    ]
+    agents = config.agent_health_targets()
     
     all_healthy = True
     for name, url in agents:
@@ -392,4 +389,3 @@ def chat(
 
 if __name__ == "__main__":
     app()
-

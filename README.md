@@ -12,7 +12,7 @@ AI-powered research assistant built with **LangChain** and **LangGraph** for aut
 ## Architecture
 
 ```
-Query → Decompose → [Web Search + ArXiv] → Synthesize → Report
+Query → Decompose → Web Search → ArXiv Search → Synthesize → Report
               ↑                                   |
               └───────── (if more info needed) ───┘
 ```
@@ -22,7 +22,7 @@ Query → Decompose → [Web Search + ArXiv] → Synthesize → Report
 ### 1. Install Dependencies
 
 ```bash
-cd /Users/dungca/agent
+cd /absolute/path/to/research-agent
 pip install -r requirements.txt
 ```
 
@@ -43,10 +43,10 @@ Optional:
 
 ```bash
 # Basic research query
-python main.py "What are the latest advances in LLM agents?"
+python main.py research "What are the latest advances in LLM agents?"
 
 # Save report to file
-python main.py "transformer attention mechanisms" -o report.md
+python main.py research "transformer attention mechanisms" -o report.md
 
 # Test tools
 python main.py test-tools
@@ -58,7 +58,7 @@ python main.py info
 ## Project Structure
 
 ```
-agent/
+research-agent/
 ├── main.py                 # CLI entry point
 ├── start_agents.sh         # Start all A2A agents
 ├── requirements.txt        # Dependencies
@@ -129,7 +129,7 @@ This agent can be used as an MCP server, allowing AI assistants like Claude Desk
 | `arxiv_search` | Find academic papers on arXiv |
 | `arxiv_get_paper` | Get details of a specific paper by ID |
 | `read_paper_pdf` | Extract text from paper PDFs |
-| `deep_research` | Comprehensive multi-source research |
+| `deep_research` | DeepAgents-powered multi-source research |
 
 ### Run as MCP Server
 
@@ -151,8 +151,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
     "research-agent": {
       "command": "python",
       "args": ["-m", "src.mcp.server"],
-      "cwd": "/Users/dungca/agent",
+      "cwd": "/absolute/path/to/research-agent",
       "env": {
+        "PYTHONPATH": "/absolute/path/to/research-agent",
         "GOOGLE_API_KEY": "your_key_here"
       }
     }
@@ -169,7 +170,7 @@ Add to your settings or MCP config:
   "research-agent": {
     "command": "python",
     "args": ["-m", "src.mcp.server"],
-    "cwd": "/Users/dungca/agent"
+    "cwd": "/absolute/path/to/research-agent"
   }
 }
 ```

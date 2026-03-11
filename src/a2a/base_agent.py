@@ -1,11 +1,8 @@
 """Base class for A2A agents."""
 
-import json
-import uvicorn
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from typing import Any, Optional
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 
@@ -119,12 +116,16 @@ class BaseA2AAgent(ABC):
     
     def run(self):
         """Start the agent server."""
+        import uvicorn
+
         print(f"🚀 Starting {self.agent_card.name} on http://{self.host}:{self.port}")
         print(f"   Skills: {', '.join(self.agent_card.skills)}")
         uvicorn.run(self.app, host=self.host, port=self.port)
     
     async def run_async(self):
         """Start the agent server asynchronously."""
+        import uvicorn
+
         config = uvicorn.Config(self.app, host=self.host, port=self.port)
         server = uvicorn.Server(config)
         await server.serve()

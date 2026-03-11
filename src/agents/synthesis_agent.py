@@ -19,15 +19,23 @@ from langchain_core.messages import HumanMessage
 
 class SynthesisAgent(BaseA2AAgent):
     """Agent specialized in synthesizing research and generating reports."""
-    
+
     def __init__(self, port: int = 8003):
         super().__init__(port=port)
-        config = get_config()
-        self.llm = ChatGoogleGenerativeAI(
-            model=config.llm_model,
-            google_api_key=config.google_api_key,
-            temperature=0.3
-        )
+        self.config = get_config()
+        self.llm = None
+
+    def _get_llm(self) -> ChatGoogleGenerativeAI:
+        """Create the LLM lazily and fail with a clear message if unavailable."""
+        if self.llm is None:
+            if not self.config.has_google_api:
+                raise ValueError("GOOGLE_API_KEY is required for synthesis tasks")
+            self.llm = ChatGoogleGenerativeAI(
+                model=self.config.llm_model,
+                google_api_key=self.config.google_api_key,
+                temperature=0.3
+            )
+        return self.llm
     
     @property
     def agent_card(self) -> AgentCard:
@@ -118,7 +126,7 @@ Create a detailed synthesis that:
 
 Write the synthesis now:"""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
         return {
             "query": query,
@@ -198,7 +206,7 @@ Create a detailed, professional research report with the following structure:
 
 Write the complete report now:"""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
         # Append references
         full_report = response.content + "\n\n---\n" + references
@@ -256,7 +264,7 @@ For each paper, note:
 
 Be analytical and specific."""
         
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
         return {
             "paper_count": len(papers),

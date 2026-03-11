@@ -17,6 +17,7 @@ class ResearchState(TypedDict):
         arxiv_papers: Papers found from arXiv
         paper_contents: Extracted text from papers
         synthesis: Synthesized information from all sources
+        synthesis_sources: Sources used to generate synthesis and reports
         final_report: Final research report
         iteration: Current iteration count
         should_continue: Whether to continue researching
@@ -34,6 +35,7 @@ class ResearchState(TypedDict):
     
     # Output state
     synthesis: str
+    synthesis_sources: list[dict]
     final_report: str
     
     # Control state
@@ -59,6 +61,7 @@ def create_initial_state(query: str) -> ResearchState:
         "arxiv_papers": [],
         "paper_contents": [],
         "synthesis": "",
+        "synthesis_sources": [],
         "final_report": "",
         "iteration": 0,
         "should_continue": True,
