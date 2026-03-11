@@ -1,0 +1,92 @@
+services:
+  search-agent:
+    build: .
+    command: python -m src.agents.search_agent
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  paper-agent:
+    build: .
+    command: python -m src.agents.paper_agent
+    ports:
+      - "8002:8002"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  synthesis-agent:
+    build: .
+    command: python -m src.agents.synthesis_agent
+    ports:
+      - "8003:8003"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8003/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  mcp-server:
+    build: .
+    command: python main.py mcp --transport sse --port 3000
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+    depends_on:
+      search-agent:
+        condition: service_healthy
+      paper-agent:
+        condition: service_healthy
+      synthesis-agent:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chainlit:
+    build: .
+    command: chainlit run chainlit_app.py --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+    depends_on:
+      search-agent:
+        condition: service_healthy
+      paper-agent:
+        condition: service_healthy
+      synthesis-agent:
+        condition: service_healthy
+    restart: unless-stopped

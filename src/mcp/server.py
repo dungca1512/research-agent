@@ -136,6 +136,23 @@ async def arxiv_get_paper(arxiv_id: str) -> str:
 """
 
 
+
+@mcp.tool()
+async def summarize_paper(arxiv_id: str) -> str:
+    """
+    Fetch an arXiv paper by ID and return a concise LLM-generated summary.
+    Use this when you need a quick overview of a specific paper without reading the full PDF.
+
+    Args:
+        arxiv_id: The arXiv paper ID (e.g., "2301.00001" or "2106.09685")
+
+    Returns:
+        Paper metadata and a 3-5 sentence summary of the abstract
+    """
+    from src.tools.summarize_paper import summarize_paper as _summarize
+    return _summarize(arxiv_id)
+
+
 # ============= Paper Parser Tools =============
 
 @mcp.tool()
@@ -452,7 +469,7 @@ Claude → MCP Gateway → A2A Protocol → Specialized Agents
 
 ## MCP Tools:
 ### Basic Search
-- web_search, arxiv_search, arxiv_get_paper
+- web_search, arxiv_search, arxiv_get_paper, summarize_paper
 
 ### Semantic Scholar (NEW)
 - semantic_search - Search with citation metrics

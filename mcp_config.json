@@ -1,11 +1,9 @@
 {
     "mcpServers": {
-        "research-agent": {
+        "research-agent-local": {
+            "_comment": "Use this when running locally (without Docker)",
             "command": "python",
-            "args": [
-                "-m",
-                "src.mcp.server"
-            ],
+            "args": ["-m", "src.mcp.server"],
             "cwd": "/absolute/path/to/research-agent",
             "env": {
                 "PYTHONPATH": "/absolute/path/to/research-agent",
@@ -15,6 +13,10 @@
                 "PAPER_AGENT_URL": "http://localhost:8002",
                 "SYNTHESIS_AGENT_URL": "http://localhost:8003"
             }
+        },
+        "research-agent-docker": {
+            "_comment": "Use this when running via Docker Compose (docker compose up)",
+            "url": "http://localhost:3000/sse"
         }
     }
 }
