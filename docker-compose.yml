@@ -53,6 +53,50 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  tracker-agent:
+    build: .
+    command: python -m src.agents.tracker_agent
+    ports:
+      - "8004:8004"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+      TRACKER_AGENT_URL: http://tracker-agent:8004
+      QA_AGENT_URL: http://qa-agent:8005
+    volumes:
+      - research_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8004/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  qa-agent:
+    build: .
+    command: python -m src.agents.qa_agent
+    ports:
+      - "8005:8005"
+    env_file: .env
+    environment:
+      SEARCH_AGENT_URL: http://search-agent:8001
+      PAPER_AGENT_URL: http://paper-agent:8002
+      SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+      TRACKER_AGENT_URL: http://tracker-agent:8004
+      QA_AGENT_URL: http://qa-agent:8005
+    volumes:
+      - research_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8005/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   mcp-server:
     build: .
     command: python main.py mcp --transport sse --port 3000
@@ -63,12 +107,18 @@ services:
       SEARCH_AGENT_URL: http://search-agent:8001
       PAPER_AGENT_URL: http://paper-agent:8002
       SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+      TRACKER_AGENT_URL: http://tracker-agent:8004
+      QA_AGENT_URL: http://qa-agent:8005
     depends_on:
       search-agent:
         condition: service_healthy
       paper-agent:
         condition: service_healthy
       synthesis-agent:
+        condition: service_healthy
+      tracker-agent:
+        condition: service_healthy
+      qa-agent:
         condition: service_healthy
     restart: unless-stopped
 
@@ -82,6 +132,8 @@ services:
       SEARCH_AGENT_URL: http://search-agent:8001
       PAPER_AGENT_URL: http://paper-agent:8002
       SYNTHESIS_AGENT_URL: http://synthesis-agent:8003
+      TRACKER_AGENT_URL: http://tracker-agent:8004
+      QA_AGENT_URL: http://qa-agent:8005
     depends_on:
       search-agent:
         condition: service_healthy
@@ -89,4 +141,16 @@ services:
         condition: service_healthy
       synthesis-agent:
         condition: service_healthy
+      tracker-agent:
+        condition: service_healthy
+      qa-agent:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  research_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data

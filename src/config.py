@@ -20,6 +20,7 @@ class Config(BaseModel):
 
     # Search Settings
     tavily_api_key: str = Field(default_factory=lambda: os.getenv("TAVILY_API_KEY", ""))
+    serp_api_key: str = Field(default_factory=lambda: os.getenv("SERP_API_KEY", ""))
 
     # Agent Settings
     max_iterations: int = Field(default=5)
@@ -30,6 +31,8 @@ class Config(BaseModel):
     search_agent_url: str = Field(default_factory=lambda: os.getenv("SEARCH_AGENT_URL", "http://localhost:8001"))
     paper_agent_url: str = Field(default_factory=lambda: os.getenv("PAPER_AGENT_URL", "http://localhost:8002"))
     synthesis_agent_url: str = Field(default_factory=lambda: os.getenv("SYNTHESIS_AGENT_URL", "http://localhost:8003"))
+    tracker_agent_url: str = Field(default_factory=lambda: os.getenv("TRACKER_AGENT_URL", "http://localhost:8004"))
+    qa_agent_url: str = Field(default_factory=lambda: os.getenv("QA_AGENT_URL", "http://localhost:8005"))
 
     # Paths
     project_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[1])
@@ -60,6 +63,8 @@ class Config(BaseModel):
             ("Search Agent", self.search_agent_url),
             ("Paper Agent", self.paper_agent_url),
             ("Synthesis Agent", self.synthesis_agent_url),
+            ("Tracker Agent", self.tracker_agent_url),
+            ("QA Agent", self.qa_agent_url),
         ]
 
 
