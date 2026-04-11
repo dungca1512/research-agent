@@ -13,6 +13,10 @@ Run:
 from typing import Any
 from src.a2a.base_agent import BaseA2AAgent, AgentCard
 from src.config import get_config
+from src.tools.paper_comparison import (
+    compare_papers_structured,
+    format_comparison_markdown,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 
@@ -102,29 +106,30 @@ class SynthesisAgent(BaseA2AAgent):
             sources_text += f"    Year: {p.get('published', p.get('year', 'N/A'))}\n"
             sources_text += f"    Abstract: {p.get('summary', '')[:500]}\n\n"
         
-        prompt = f"""You are a research analyst creating a comprehensive synthesis of findings.
+        prompt = f"""Bạn là một nhà phân tích nghiên cứu tạo bản tổng hợp toàn diện từ các nguồn tài liệu.
 
-# Research Topic
+# Chủ đề nghiên cứu
 {query}
 
 {sources_text}
 
-# Task
-Create a detailed synthesis that:
-1. Identifies ALL key themes and concepts across sources
-2. Notes areas of consensus between sources
-3. Highlights any conflicting information or debates
-4. Identifies gaps in current research
-5. Provides context and background
+# Nhiệm vụ
+Tạo một bản tổng hợp chi tiết:
+1. Xác định TẤT CẢ các chủ đề và khái niệm chính từ các nguồn
+2. Ghi nhận các điểm đồng thuận giữa các nguồn
+3. Làm nổi bật các thông tin mâu thuẫn hoặc tranh luận
+4. Xác định các khoảng trống trong nghiên cứu hiện tại
+5. Cung cấp bối cảnh và nền tảng kiến thức
 
-# Requirements
-- Write in a scholarly but accessible style
-- Use inline citations like [1], [2], [3] to reference sources
-- Be thorough and comprehensive (aim for 500-800 words)
-- Include specific details, statistics, and quotes where available
-- Organize by themes, not by source
+# Yêu cầu
+- Viết theo phong cách học thuật nhưng dễ hiểu
+- Sử dụng trích dẫn nội tuyến như [1], [2], [3] để tham chiếu nguồn
+- Đầy đủ và toàn diện (khoảng 500-800 từ)
+- Bao gồm các chi tiết, số liệu thống kê cụ thể khi có
+- Tổ chức theo chủ đề, không theo từng nguồn
+- QUAN TRỌNG: Viết toàn bộ bằng tiếng Việt
 
-Write the synthesis now:"""
+Viết bản tổng hợp ngay bây giờ:"""
         
         response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
@@ -156,55 +161,56 @@ Write the synthesis now:"""
                 arxiv = f" arXiv:{s.get('arxiv_id')}" if s.get('arxiv_id') else ""
                 references += f"[{s['id']}] {authors}. ({year}). {s['title']}.{arxiv}\n\n"
         
-        prompt = f"""You are a senior research analyst creating a comprehensive research report.
+        prompt = f"""Bạn là một nhà phân tích nghiên cứu cấp cao đang tạo một báo cáo nghiên cứu toàn diện.
 
-# Research Question
+# Câu hỏi nghiên cứu
 {query}
 
-# Research Synthesis
+# Bản tổng hợp nghiên cứu
 {synthesis}
 
-# Task
-Create a detailed, professional research report with the following structure:
+# Nhiệm vụ
+Tạo một báo cáo nghiên cứu chi tiết, chuyên nghiệp với cấu trúc sau:
 
-## 1. Executive Summary
-- 3-5 sentences summarizing the key findings
-- Highlight the most important insights
+## 1. Tóm tắt tổng quan
+- 3-5 câu tóm tắt các phát hiện chính
+- Làm nổi bật những thông tin quan trọng nhất
 
-## 2. Introduction
-- Background and context of the research topic
-- Why this topic matters
-- Scope of this report
+## 2. Giới thiệu
+- Bối cảnh và nền tảng của chủ đề nghiên cứu
+- Tại sao chủ đề này quan trọng
+- Phạm vi của báo cáo này
 
-## 3. Key Findings
-- Organize findings by theme (not by source)
-- Use bullet points and sub-bullets for clarity
-- Include specific details, numbers, and quotes
-- Use inline citations [1], [2], etc.
+## 3. Các phát hiện chính
+- Tổ chức theo chủ đề (không theo nguồn)
+- Dùng bullet points và sub-bullets cho rõ ràng
+- Bao gồm chi tiết, số liệu và trích dẫn cụ thể
+- Sử dụng trích dẫn nội tuyến [1], [2], v.v.
 
-## 4. Detailed Analysis
-- Deep dive into each major theme
-- Discuss implications and significance
-- Note any limitations or caveats
-- Compare different perspectives
+## 4. Phân tích chi tiết
+- Đi sâu vào từng chủ đề chính
+- Thảo luận về ý nghĩa và tầm quan trọng
+- Ghi chú các hạn chế hoặc lưu ý
+- So sánh các quan điểm khác nhau
 
-## 5. Research Gaps & Future Directions
-- What questions remain unanswered?
-- What areas need more research?
-- Potential next steps
+## 5. Khoảng trống nghiên cứu & Hướng phát triển
+- Những câu hỏi nào còn chưa được trả lời?
+- Những lĩnh vực nào cần nghiên cứu thêm?
+- Các bước tiếp theo có thể thực hiện
 
-## 6. Conclusion
-- Synthesize the main takeaways
-- Provide actionable insights if applicable
+## 6. Kết luận
+- Tổng hợp các điểm chính
+- Cung cấp các thông tin hữu ích nếu có thể áp dụng
 
-# Requirements
-- Write 1000-1500 words minimum
-- Use proper Markdown formatting with headers
-- Include inline citations [1], [2], [3] throughout
-- Be thorough, detailed, and analytical
-- Maintain academic rigor while being accessible
+# Yêu cầu
+- Tối thiểu 1000-1500 từ
+- Sử dụng định dạng Markdown đúng với các tiêu đề rõ ràng
+- Bao gồm trích dẫn nội tuyến [1], [2], [3] xuyên suốt báo cáo
+- Đầy đủ, chi tiết và có tính phân tích cao
+- Duy trì tính nghiêm túc học thuật trong khi vẫn dễ tiếp cận
+- QUAN TRỌNG: Viết toàn bộ báo cáo bằng tiếng Việt
 
-Write the complete report now:"""
+Viết báo cáo đầy đủ ngay bây giờ:"""
         
         response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
         
@@ -218,57 +224,47 @@ Write the complete report now:"""
         }
     
     async def _compare_papers(self, payload: dict) -> dict:
-        """Compare multiple papers in detail."""
+        """Compare multiple papers using structured extraction."""
         papers = payload.get("papers", [])
-        
+
         if len(papers) < 2:
             return {"error": "Need at least 2 papers to compare"}
-        
+
+        try:
+            matrix = await compare_papers_structured(papers)
+            markdown = format_comparison_markdown(matrix)
+            return {
+                "paper_count": len(papers),
+                "comparison": markdown,
+                "matrix": matrix,
+            }
+        except Exception:
+            # Fallback to free-form comparison if structured extraction fails
+            return await self._compare_papers_fallback(papers)
+
+    async def _compare_papers_fallback(self, papers: list[dict]) -> dict:
+        """Free-form LLM comparison as fallback."""
         papers_text = ""
         for i, p in enumerate(papers[:5], 1):
-            authors = ", ".join(p.get('authors', [])[:3])
+            authors = ", ".join(p.get("authors", [])[:3])
             papers_text += f"\n### Paper {i}: {p.get('title', 'N/A')}\n"
             papers_text += f"**Authors:** {authors}\n"
             papers_text += f"**Year:** {p.get('year', p.get('published', 'N/A'))}\n"
             papers_text += f"**Summary:** {p.get('summary', 'N/A')[:800]}\n"
-        
+
         prompt = f"""Compare the following research papers in detail:
 
 {papers_text}
 
-Provide a comprehensive comparison including:
-
-## 1. Overview
-Brief description of each paper's main contribution
-
-## 2. Methodology Comparison
-- What approaches does each paper use?
-- How do they differ in their methods?
-
-## 3. Key Findings Comparison
-- What are the main results of each?
-- Where do they agree or disagree?
-
-## 4. Strengths & Limitations
-For each paper, note:
-- Key strengths
-- Potential limitations
-
-## 5. Complementary Aspects
-- How do these papers build on each other?
-- What gaps does one fill that another doesn't?
-
-## 6. Recommendation
-- Which paper is best for what use case?
-- How should a researcher use these together?
+Provide a comparison covering: overview, methodology, key findings, strengths & limitations, complementary aspects, and recommendation.
 
 Be analytical and specific."""
-        
+
         response = await self._get_llm().ainvoke([HumanMessage(content=prompt)])
-        
+
         return {
             "paper_count": len(papers),
-            "comparison": response.content
+            "comparison": response.content,
         }
 
 

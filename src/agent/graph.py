@@ -9,6 +9,7 @@ from src.agent.nodes import (
     arxiv_search_node,
     synthesis_node,
     report_node,
+    save_to_tracker_node,
     should_continue_research,
 )
 
@@ -19,6 +20,7 @@ NODE_NAMES = {
     "arxiv_search": "📚 Searching arXiv (A2A → Search Agent)",
     "synthesize": "🧠 Synthesizing results (A2A → Synthesis Agent)",
     "report": "📝 Generating report (A2A → Synthesis Agent)",
+    "save_to_tracker": "💾 Saving session to tracker",
 }
 
 
@@ -45,7 +47,8 @@ def create_research_agent():
     workflow.add_node("arxiv_search", arxiv_search_node)
     workflow.add_node("synthesize", synthesis_node)
     workflow.add_node("report", report_node)
-    
+    workflow.add_node("save_to_tracker", save_to_tracker_node)
+
     # Define edges
     workflow.set_entry_point("decompose")
     
@@ -64,8 +67,9 @@ def create_research_agent():
         }
     )
     
-    # Report is the final node
-    workflow.add_edge("report", END)
+    # After report, save to tracker then end
+    workflow.add_edge("report", "save_to_tracker")
+    workflow.add_edge("save_to_tracker", END)
     
     # Compile the graph
     return workflow.compile()

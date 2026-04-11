@@ -10,6 +10,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from src.agent.state import ResearchState
 from src.config import get_config
 from src.research.backend import SEARCH_AGENT_URL, SYNTHESIS_AGENT_URL, call_agent_safe
+from src.storage.database import init_db, save_session
 
 # Prompts
 QUERY_DECOMPOSITION_PROMPT = """You are a research assistant helping to decompose a research query into effective search queries.
@@ -24,38 +25,40 @@ Original Query: {query}
 
 Return ONLY the search queries, one per line. No numbering or explanations."""
 
-SYNTHESIS_PROMPT = """You are a research assistant synthesizing information from multiple sources.
+SYNTHESIS_PROMPT = """Bạn là một trợ lý nghiên cứu tổng hợp thông tin từ nhiều nguồn khác nhau.
 
-Original Research Query: {query}
+Câu hỏi nghiên cứu gốc: {query}
 
-Web Search Results:
+Kết quả tìm kiếm web:
 {web_results}
 
-ArXiv Papers Found:
+Bài báo khoa học tìm được trên ArXiv:
 {arxiv_results}
 
-Based on the above information, provide a comprehensive synthesis that:
-1. Identifies key themes and findings
-2. Notes any conflicting information
-3. Highlights gaps that may need further research
+Dựa trên thông tin trên, hãy cung cấp một bản tổng hợp toàn diện:
+1. Xác định các chủ đề và phát hiện chính
+2. Ghi nhận các thông tin mâu thuẫn
+3. Làm nổi bật các khoảng trống cần nghiên cứu thêm
 
-Be concise but thorough. Focus on factual information with proper attribution."""
+Hãy ngắn gọn nhưng đầy đủ. Tập trung vào thông tin thực tế với trích dẫn đúng nguồn.
+QUAN TRỌNG: Viết toàn bộ bằng tiếng Việt."""
 
-REPORT_PROMPT = """You are a research assistant creating a final research report.
+REPORT_PROMPT = """Bạn là một trợ lý nghiên cứu tạo báo cáo nghiên cứu cuối cùng.
 
-Original Query: {query}
+Câu hỏi gốc: {query}
 
-Synthesized Findings:
+Các phát hiện đã tổng hợp:
 {synthesis}
 
-Create a well-structured research report in Markdown format with:
-1. Executive Summary (2-3 sentences)
-2. Key Findings (bullet points)
-3. Detailed Analysis (organized by theme)
-4. Sources & References
-5. Further Research Suggestions
+Tạo một báo cáo nghiên cứu có cấu trúc rõ ràng theo định dạng Markdown với:
+1. Tóm tắt tổng quan (2-3 câu)
+2. Các phát hiện chính (dạng bullet points)
+3. Phân tích chi tiết (được tổ chức theo chủ đề)
+4. Nguồn tài liệu tham khảo
+5. Đề xuất hướng nghiên cứu tiếp theo
 
-The report should be professional, accurate, and cite sources where applicable."""
+Báo cáo phải chuyên nghiệp, chính xác và trích dẫn nguồn khi cần thiết.
+QUAN TRỌNG: Viết toàn bộ báo cáo bằng tiếng Việt."""
 
 
 def get_llm():
@@ -302,6 +305,29 @@ def report_node(state: ResearchState) -> dict:
         "final_report": report,
         "should_continue": False,
         "messages": [AIMessage(content="Generated final research report via A2A")]
+    }
+
+
+def save_to_tracker_node(state: ResearchState) -> dict:
+    """
+    Save the completed research session to the database.
+    Runs after report generation.
+    """
+    async def _save():
+        await init_db()
+        session_id = await save_session(
+            query=state["query"],
+            report=state["final_report"],
+            summary=state["synthesis"][:500] if state["synthesis"] else "",
+            papers=state.get("arxiv_papers"),
+            web_sources=state.get("web_results"),
+        )
+        return session_id
+
+    session_id = run_async(_save())
+
+    return {
+        "messages": [AIMessage(content=f"Session saved to tracker (id={session_id})")]
     }
 
 

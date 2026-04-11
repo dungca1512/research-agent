@@ -22,6 +22,7 @@ from src.tools.section_extractor import (
     extract_paper_sections, extract_methodology,
     extract_results, extract_conclusion, extract_references_list
 )
+from src.tools.paper_comparison import extract_paper_structured
 from src.config import get_config
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
@@ -56,7 +57,7 @@ class PaperAgent(BaseA2AAgent):
             skills=[
                 "get_paper", "parse_pdf", "extract_key_info",
                 "semantic_search", "get_citations", "get_references",
-                "extract_sections", "format_citation"
+                "extract_sections", "format_citation", "extract_structured"
             ]
         )
     
@@ -79,6 +80,8 @@ class PaperAgent(BaseA2AAgent):
             return await self._extract_sections(payload)
         elif action == "format_citation":
             return await self._format_citation(payload)
+        elif action == "extract_structured":
+            return await self._extract_structured(payload)
         else:
             raise ValueError(f"Unknown action: {action}")
     
@@ -131,6 +134,17 @@ class PaperAgent(BaseA2AAgent):
         citation = format_citation(paper, style)
         return {"style": style, "citation": citation}
     
+    async def _extract_structured(self, payload: dict) -> dict:
+        """Extract structured paper info using Pydantic schema."""
+        title = payload.get("title", "Unknown")
+        content = payload.get("content", payload.get("summary", ""))
+        if not content:
+            return {"error": "content or summary is required"}
+        try:
+            return await extract_paper_structured(title, content)
+        except Exception as e:
+            return {"error": f"Structured extraction failed: {e}"}
+
     async def _extract_key_info(self, payload: dict) -> dict:
         """Extract key findings from paper content."""
         content = payload.get("content", "")
