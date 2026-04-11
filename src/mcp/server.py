@@ -12,6 +12,7 @@ Architecture:
 """
 
 from fastmcp import FastMCP
+from src.config import get_config
 from src.research.backend import (
     PAPER_AGENT_URL,
     SEARCH_AGENT_URL,
@@ -210,6 +211,277 @@ async def deep_research(query: str) -> str:
         Comprehensive research report in Markdown (1000+ words)
     """
     return await run_deep_research(query)
+
+
+# ============= Paper Comparison Tool =============
+
+@mcp.tool()
+async def compare_papers(arxiv_ids: str) -> str:
+    """
+    Compare multiple arXiv papers side-by-side with structured extraction.
+    Extracts methodology, datasets, metrics, results, contributions, and limitations
+    for each paper, then identifies common themes, differences, and complementary strengths.
+
+    Args:
+        arxiv_ids: Comma-separated arXiv IDs (e.g., "2301.00001,2305.12345,2310.67890")
+
+    Returns:
+        Structured comparison matrix in Markdown
+    """
+    from src.tools.arxiv_search import get_paper_by_id
+
+    ids = [aid.strip() for aid in arxiv_ids.split(",") if aid.strip()]
+    if len(ids) < 2:
+        return "Need at least 2 arXiv IDs separated by commas."
+
+    # Fetch paper details
+    papers = []
+    for aid in ids[:5]:
+        paper = get_paper_by_id(aid)
+        if paper:
+            papers.append(paper)
+
+    if len(papers) < 2:
+        return f"Could only find {len(papers)} paper(s). Need at least 2 to compare."
+
+    result = await call_agent_safe(
+        SYNTHESIS_AGENT_URL,
+        "compare_papers",
+        {"papers": papers},
+    )
+
+    if "error" in result:
+        return f"Comparison failed: {result['error']}"
+
+    return result.get("comparison", "No comparison generated")
+
+
+# ============= Export Tools =============
+
+@mcp.tool()
+async def export_report(session_id: int, format: str = "docx") -> str:
+    """
+    Export a research session report to DOCX, PPTX, or LaTeX.
+
+    Args:
+        session_id: Research session ID to export
+        format: Output format — "docx", "pptx", or "latex"
+
+    Returns:
+        Path to the generated file
+    """
+    from src.storage.database import init_db, get_session
+    from src.tools.export import export_docx, export_pptx, export_latex
+
+    await init_db()
+    session = await get_session(session_id)
+    if not session:
+        return f"Session #{session_id} not found"
+
+    report = session.get("report", "")
+    if not report:
+        return f"Session #{session_id} has no report"
+
+    title = f"Research: {session['query'][:60]}"
+    ext_map = {"docx": ".docx", "pptx": ".pptx", "latex": ".tex"}
+    ext = ext_map.get(format, ".docx")
+    output_path = f"output/session_{session_id}{ext}"
+
+    exporters = {"docx": export_docx, "pptx": export_pptx, "latex": export_latex}
+    exporter = exporters.get(format)
+    if not exporter:
+        return f"Unknown format: {format}. Use docx, pptx, or latex."
+
+    path = exporter(report, output_path, title)
+    return f"Report exported to: `{path}`"
+
+
+# ============= Trend Analysis Tools =============
+
+@mcp.tool()
+async def analyze_trends(query: str, max_papers: int = 50) -> str:
+    """
+    Analyze publication trends for a research topic using Semantic Scholar.
+    Shows publications per year, citation distribution, and top-cited papers.
+
+    Args:
+        query: Research topic to analyze
+        max_papers: Number of papers to fetch (default: 50)
+
+    Returns:
+        Trend summary with statistics and chart file paths
+    """
+    from src.tools.trend_analysis import publication_trends, format_trends_markdown
+
+    result = await publication_trends(query, max_papers)
+    return format_trends_markdown(result)
+
+
+@mcp.tool()
+async def session_analytics() -> str:
+    """
+    Analyze trends across all your past research sessions.
+    Shows sessions over time, papers collected per session, and summary stats.
+
+    Returns:
+        Research session analytics with chart paths
+    """
+    from src.tools.trend_analysis import session_trends, format_trends_markdown
+
+    result = await session_trends()
+    return format_trends_markdown(result)
+
+
+# ============= Q&A (RAG) Tools =============
+
+@mcp.tool()
+async def index_session(session_id: int) -> str:
+    """
+    Index a research session into the vector store for Q&A.
+    Must be called before using ask_session.
+
+    Args:
+        session_id: Research session ID to index
+
+    Returns:
+        Indexing summary with document and chunk counts
+    """
+    from src.storage.database import init_db, get_session
+    from src.storage.vector_store import index_documents
+
+    await init_db()
+    session = await get_session(session_id)
+    if not session:
+        return f"Session #{session_id} not found"
+
+    documents = []
+    if session.get("report"):
+        documents.append({
+            "text": session["report"],
+            "title": f"Research Report: {session['query']}",
+            "source": "report",
+        })
+    for p in session.get("papers", []):
+        text = p.get("abstract", p.get("full_text", ""))
+        if text:
+            documents.append({
+                "text": text,
+                "title": p.get("title", "Unknown"),
+                "source": f"paper:{p.get('arxiv_id', '')}",
+            })
+    for w in session.get("web_sources", []):
+        text = w.get("snippet", "")
+        if text:
+            documents.append({
+                "text": text,
+                "title": w.get("title", "Web Source"),
+                "source": f"web:{w.get('url', '')}",
+            })
+
+    if not documents:
+        return "No content to index in this session"
+
+    chunks = await index_documents(session_id, documents)
+    return (
+        f"Indexed session #{session_id}: "
+        f"{len(documents)} documents, {chunks} chunks created"
+    )
+
+
+@mcp.tool()
+async def ask_session(session_id: int, question: str) -> str:
+    """
+    Ask a question about a research session using RAG.
+    The session must be indexed first with index_session.
+
+    Args:
+        session_id: Research session ID to query
+        question: Your question about the research
+
+    Returns:
+        Answer grounded in the session's documents with source citations
+    """
+    from src.storage.database import init_db
+    from src.storage.vector_store import query_documents
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.messages import HumanMessage as HMsg
+
+    await init_db()
+    chunks = await query_documents(session_id, question, top_k=5)
+
+    if not chunks:
+        return "No relevant information found. Make sure the session is indexed first with `index_session`."
+
+    context_parts = []
+    for i, c in enumerate(chunks, 1):
+        context_parts.append(f"[{i}] ({c['source']}) {c['title']}\n{c['text']}")
+    context = "\n\n---\n\n".join(context_parts)
+
+    config = get_config()
+    llm = ChatGoogleGenerativeAI(
+        model=config.llm_model,
+        google_api_key=config.google_api_key,
+        temperature=0.2,
+    )
+
+    prompt = f"""Answer the question based ONLY on the provided context.
+Use inline citations [1], [2] to reference sources. If the context is insufficient, say so.
+
+## Context
+{context}
+
+## Question
+{question}"""
+
+    response = await llm.ainvoke([HMsg(content=prompt)])
+
+    sources = "\n".join(
+        f"- [{i}] {c['title']} ({c['source']})" for i, c in enumerate(chunks, 1)
+    )
+    return f"{response.content}\n\n---\n**Sources:**\n{sources}"
+
+
+# ============= Knowledge Graph Tool =============
+
+@mcp.tool()
+async def build_knowledge_graph(session_id: int) -> str:
+    """
+    Build and visualize a knowledge graph from a research session.
+    Creates an interactive HTML visualization showing papers, authors,
+    and web sources as connected nodes.
+
+    Args:
+        session_id: Research session ID to build graph from
+
+    Returns:
+        Graph statistics and path to the generated HTML file
+    """
+    from src.storage.database import init_db
+    from src.tools.knowledge_graph import (
+        build_graph_from_session, render_graph_html,
+        get_graph_stats, persist_graph,
+    )
+
+    await init_db()
+
+    try:
+        G = await build_graph_from_session(session_id)
+    except ValueError as e:
+        return str(e)
+
+    stats = get_graph_stats(G)
+    html_path = render_graph_html(G, f"data/kg_session_{session_id}.html")
+    await persist_graph(session_id, G)
+
+    types = ", ".join(f"{k}: {v}" for k, v in stats["node_types"].items())
+    return (
+        f"## Knowledge Graph — Session #{session_id}\n\n"
+        f"- **Nodes:** {stats['nodes']}\n"
+        f"- **Edges:** {stats['edges']}\n"
+        f"- **Density:** {stats['density']}\n"
+        f"- **Types:** {types}\n\n"
+        f"Interactive visualization saved to: `{html_path}`"
+    )
 
 
 # ============= Agent Status Tool =============
@@ -479,6 +751,19 @@ Claude → MCP Gateway → A2A Protocol → Specialized Agents
 ### Paper Analysis (NEW)
 - extract_paper_sections - Get Abstract, Methods, Results, Conclusion
 - format_citation - Format in APA, MLA, BibTeX
+
+### Paper Comparison
+- compare_papers - Structured side-by-side comparison matrix
+
+### Export & Analytics
+- export_report - Export reports to DOCX, PPTX, or LaTeX
+- analyze_trends - Publication trends via Semantic Scholar
+- session_analytics - Trends across research sessions
+
+### Knowledge & Q&A
+- build_knowledge_graph - Interactive graph visualization
+- index_session - Index session for RAG Q&A
+- ask_session - Ask questions over indexed sessions
 
 ### Deep Research
 - deep_research - DeepAgents-powered research orchestration
