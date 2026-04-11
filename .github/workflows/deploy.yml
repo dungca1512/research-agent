@@ -1,0 +1,36 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            set -e
+
+            # Pull latest code
+            cd /opt/research-agent
+            git pull origin main
+
+            # Rebuild and restart services (zero-downtime: rebuild first, then restart)
+            docker compose build --pull
+            docker compose up -d --remove-orphans
+
+            # Wait and verify health
+            sleep 15
+            docker compose ps
+            echo "Deploy completed at $(date)"
