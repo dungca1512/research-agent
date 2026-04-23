@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-agent
+  namespace: research-agent
+  labels:
+    app: search-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-agent
+  template:
+    metadata:
+      labels:
+        app: search-agent
+    spec:
+      containers:
+        - name: search-agent
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "src.agents.search_agent"]
+          ports:
+            - containerPort: 8001
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            periodSeconds: 5
+            failureThreshold: 24  # allow 2 minutes to start
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-agent
+  namespace: research-agent
+spec:
+  selector:
+    app: search-agent
+  ports:
+    - port: 8001
+      targetPort: 8001
+      name: http

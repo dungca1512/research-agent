@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthesis-agent
+  namespace: research-agent
+  labels:
+    app: synthesis-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: synthesis-agent
+  template:
+    metadata:
+      labels:
+        app: synthesis-agent
+    spec:
+      containers:
+        - name: synthesis-agent
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "src.agents.synthesis_agent"]
+          ports:
+            - containerPort: 8003
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            periodSeconds: 5
+            failureThreshold: 24
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: synthesis-agent
+  namespace: research-agent
+spec:
+  selector:
+    app: synthesis-agent
+  ports:
+    - port: 8003
+      targetPort: 8003
+      name: http

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: research-data
+  namespace: research-agent
+spec:
+  # k3d ships with local-path-provisioner by default (ReadWriteOnce, single node).
+  # Because SQLite + LanceDB are file-based, every pod that touches them must
+  # share this same PVC and the agents that write must run with replicas=1.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path

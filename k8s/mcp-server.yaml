@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: research-agent
+  labels:
+    app: mcp-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      containers:
+        - name: mcp-server
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "main.py", "mcp", "--transport", "sse", "--port", "3000"]
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          # FastMCP doesn't expose /health — probe the SSE endpoint instead.
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: research-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: research-agent
+spec:
+  selector:
+    app: mcp-server
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qa-agent
+  namespace: research-agent
+  labels:
+    app: qa-agent
+spec:
+  # Stateful: mounts the shared SQLite/LanceDB PVC. Keep replicas=1.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qa-agent
+  template:
+    metadata:
+      labels:
+        app: qa-agent
+    spec:
+      containers:
+        - name: qa-agent
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "src.agents.qa_agent"]
+          ports:
+            - containerPort: 8005
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            periodSeconds: 5
+            failureThreshold: 24
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: research-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qa-agent
+  namespace: research-agent
+spec:
+  selector:
+    app: qa-agent
+  ports:
+    - port: 8005
+      targetPort: 8005
+      name: http

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: research-agent-config
+  namespace: research-agent
+data:
+  # Agent service URLs — match K8s Service names in this namespace
+  SEARCH_AGENT_URL: "http://search-agent:8001"
+  PAPER_AGENT_URL: "http://paper-agent:8002"
+  SYNTHESIS_AGENT_URL: "http://synthesis-agent:8003"
+  TRACKER_AGENT_URL: "http://tracker-agent:8004"
+  QA_AGENT_URL: "http://qa-agent:8005"
+
+  # LLM
+  LLM_MODEL: "gemini-2.0-flash"
+  LLM_TEMPERATURE: "0.1"
+
+  # Storage — mapped to the research-data PVC
+  DATA_DIR: "/app/data"
+  OUTPUT_DIR: "/app/data/output"

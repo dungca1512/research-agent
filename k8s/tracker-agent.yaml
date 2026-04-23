@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracker-agent
+  namespace: research-agent
+  labels:
+    app: tracker-agent
+spec:
+  # Stateful: mounts the shared SQLite/LanceDB PVC. Keep replicas=1.
+  replicas: 1
+  strategy:
+    type: Recreate  # avoid two pods holding the SQLite file at once
+  selector:
+    matchLabels:
+      app: tracker-agent
+  template:
+    metadata:
+      labels:
+        app: tracker-agent
+    spec:
+      containers:
+        - name: tracker-agent
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "src.agents.tracker_agent"]
+          ports:
+            - containerPort: 8004
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            periodSeconds: 5
+            failureThreshold: 24
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: research-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracker-agent
+  namespace: research-agent
+spec:
+  selector:
+    app: tracker-agent
+  ports:
+    - port: 8004
+      targetPort: 8004
+      name: http

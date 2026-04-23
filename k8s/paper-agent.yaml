@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paper-agent
+  namespace: research-agent
+  labels:
+    app: paper-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paper-agent
+  template:
+    metadata:
+      labels:
+        app: paper-agent
+    spec:
+      containers:
+        - name: paper-agent
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "src.agents.paper_agent"]
+          ports:
+            - containerPort: 8002
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            periodSeconds: 5
+            failureThreshold: 24
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paper-agent
+  namespace: research-agent
+spec:
+  selector:
+    app: paper-agent
+  ports:
+    - port: 8002
+      targetPort: 8002
+      name: http

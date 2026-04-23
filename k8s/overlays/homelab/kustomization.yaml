@@ -1,0 +1,64 @@
+# Overlay Kustomize cho môi trường homelab (kubeadm cluster trên OrbStack VMs).
+#
+# Base: ../../  (tức là research-agent/k8s/), reference từng file thay vì dùng
+# base kustomization.yaml vì upstream include secret.yaml — file chưa tồn tại
+# (Secret tạo imperatively từ .env qua `make secret-apply` trong homelab repo).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: research-agent
+
+# Reference từng file một từ k8s/ base (2 level up: overlays/homelab/ → k8s/)
+resources:
+  - ../../namespace.yaml
+  - ../../configmap.yaml
+  - ../../pvc.yaml
+  - ../../search-agent.yaml
+  - ../../paper-agent.yaml
+  - ../../synthesis-agent.yaml
+  - ../../tracker-agent.yaml
+  - ../../qa-agent.yaml
+  - ../../mcp-server.yaml
+  - ../../chainlit.yaml
+
+# Image transform: `image: research-agent:*` → `192.168.139.210:5000/research-agent:dev`
+# 192.168.139.210:5000 = MetalLB LB IP của registry trong cluster kubeadm.
+images:
+  - name: research-agent
+    newName: 192.168.139.210:5000/research-agent
+    newTag: dev
+
+# Patches áp dụng lên resources sau khi reference.
+patches:
+  # 1. Mọi Deployment: imagePullPolicy Always (dev workflow, image tag `dev` mutable)
+  - target:
+      kind: Deployment
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+
+  # 2. Ingress chainlit: đổi class traefik → nginx, host .localhost → .homelab.local
+  - target:
+      kind: Ingress
+      name: chainlit
+    patch: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: chainlit
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: null
+      spec:
+        ingressClassName: nginx
+        rules:
+          - host: chainlit.homelab.local
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: chainlit
+                      port:
+                        number: 8080

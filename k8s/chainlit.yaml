@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainlit
+  namespace: research-agent
+  labels:
+    app: chainlit
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chainlit
+  template:
+    metadata:
+      labels:
+        app: chainlit
+    spec:
+      containers:
+        - name: chainlit
+          image: research-agent:latest
+          imagePullPolicy: IfNotPresent
+          command: ["chainlit", "run", "chainlit_app.py", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: research-agent-config
+            - secretRef:
+                name: research-agent-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: research-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainlit
+  namespace: research-agent
+spec:
+  selector:
+    app: chainlit
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+# k3d ships with Traefik by default. This Ingress exposes chainlit on the
+# cluster's loadbalancer at http://chainlit.localhost (add a hosts entry or
+# use `k3d cluster create -p "8080:80@loadbalancer"` to reach it on :8080).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chainlit
+  namespace: research-agent
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: chainlit.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chainlit
+                port:
+                  number: 8080
