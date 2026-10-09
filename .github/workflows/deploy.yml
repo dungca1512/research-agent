@@ -6,7 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  security:
+    uses: ./.github/workflows/security.yml
+
   deploy:
+    needs: security
     runs-on: ubuntu-latest
 
     steps:
