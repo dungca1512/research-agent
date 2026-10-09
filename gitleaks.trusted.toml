@@ -1,0 +1,9 @@
+title = "research-agent gitleaks (trusted config)"
+
+# Loaded with --config by scripts/security-gate.sh because it sits at the repository root, next to scripts/.
+# The repo's own .gitleaks.toml and inline `gitleaks:allow` comments are NOT honoured.
+# To suppress a reviewed finding, add its fingerprint to the root .gitleaksignore in a pull request that
+# a human reviews. Never add an [allowlist] here.
+
+[extend]
+useDefault = true
